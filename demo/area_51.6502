@@ -1,0 +1,93 @@
+;
+; Title:        Area 51
+; Author:       Dean Belfield
+; Started:	01/04/2020
+; Last Updated:	11/04/2020
+;
+; Requires:	macros, vector, vector_filled, output, keyboard, screen_buffer, sound, sprite, math
+;
+; Modinfo:
+;
+			ORG	&2000
+
+.START			INCLUDE "./6502/lib/constants.6502"
+			INCLUDE	"./6502/lib/macros.6502"
+			INCLUDE	"./6502/lib/output.6502"
+			INCLUDE "./6502/lib/vector.6502"
+			INCLUDE	"./6502/lib/vector_filled.6502"
+			INCLUDE "./6502/lib/sprite.6502"
+			INCLUDE "./6502/lib/keyboard.6502"
+
+.MAIN			LDA	#157: STA PX
+			LDA	#249: STA PY
+			LDX	#5
+			LDY	#8
+			LDA	#%00111100
+			JSR	Draw_Line
+
+			LDY	#100
+			LDX	#23
+			LDA	#155: STA PX
+			LDA	#%00110011: STA PC
+			JSR	Draw_Horz_Line
+
+			LDX	#80
+			LDY	#110
+			LDA	#60: STA R0
+			LDA	#%00111111
+			JSR	Draw_Circle
+
+			JSR	Get_Sprite_Slot
+			LDA	#&08:	STA Sprite_W, X
+			LDA	#&10:	STA Sprite_H, X
+			LDA	#10:	STA Sprite_Y, X
+			LDA	#0:	STA Sprite_X, X
+			STAX16	Sprite_Image, SPRITE_GRAPHIC
+			STAX16	Sprite_Logic, LOGIC_TEST_1
+
+			JSR	Get_Sprite_Slot
+			LDA	#&08:	STA Sprite_W, X
+			LDA	#&10:	STA Sprite_H, X
+			LDA	#10:	STA Sprite_Y, X
+			LDA	#0:	STA Sprite_X, X
+			STAX16	Sprite_Image, SPRITE_GRAPHIC
+			STAX16	Sprite_Logic, LOGIC_TEST_2
+
+.LOOP			LDA	#19		; Wait for horizontal blank
+			JSR	OSBYTE
+			JSR	Render_Sprites	; Render the sprites
+			JMP 	LOOP	
+		
+.LOGIC_TEST_1 {
+			LDA	#&9D
+			JSR	Read_Keyboard
+			BEQ	SKIP
+			LDA	Sprite_X, X
+			CLC
+			ADC	#1
+			AND 	#&7F
+			STA	Sprite_X, X
+			INC	Sprite_Y, X
+.SKIP			RTS
+}
+
+.LOGIC_TEST_2 {
+			LDA	Sprite_X, X
+			CLC
+			ADC	#1
+			AND 	#&7F
+			STA	Sprite_X, X
+			INC	Sprite_Y, X
+.SKIP			RTS
+}
+
+.SPRITE_GRAPHIC		EQUB	&3F,&3F,&3F,&3F,&3F,&3F,&3F,&3F,&3F,&3F,&3F,&3F,&3F,&3F,&3F,&3F
+			EQUB	&3F,&00,&00,&00,&00,&00,&00,&00,&00,&00,&00,&00,&00,&00,&00,&3F
+			EQUB	&3F,&00,&00,&00,&00,&00,&00,&00,&00,&00,&00,&00,&00,&00,&00,&3F
+			EQUB	&3F,&00,&00,&00,&00,&00,&00,&00,&00,&00,&00,&00,&00,&00,&00,&3F
+			EQUB	&3F,&00,&00,&00,&00,&00,&00,&00,&00,&00,&00,&00,&00,&00,&00,&3F
+			EQUB	&3F,&00,&00,&00,&00,&00,&00,&00,&00,&00,&00,&00,&00,&00,&00,&3F	
+			EQUB	&3F,&00,&00,&00,&00,&00,&00,&00,&00,&00,&00,&00,&00,&00,&00,&3F	
+			EQUB	&3F,&3F,&3F,&3F,&3F,&3F,&3F,&3F,&3F,&3F,&3F,&3F,&3F,&3F,&3F,&3F	
+
+.END			SAVE	"area51", START, END, MAIN
