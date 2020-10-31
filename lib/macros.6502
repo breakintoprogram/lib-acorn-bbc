@@ -1,0 +1,124 @@
+;
+; Title:        Macros
+; Author:       Dean Belfield
+; Created:	25/10/2020
+; Last updated: 25/10/2020
+;
+; Requires:	
+;
+; Modinfo:
+;
+			MACRO	ADD	value
+			CLC
+			ADC	value
+			ENDMACRO
+
+			MACRO	SUB	value
+			SEC 
+			SBC	value
+			ENDMACRO
+
+			MACRO	CPL
+			EOR	#&FF
+			ENDMACRO
+
+			MACRO	NEG
+			CPL
+			ADC	#1
+			ENDMACRO
+
+			MACRO	STAI16	addr, value
+			LDA	#LO(value)
+			STA	addr
+			LDA	#HI(value)
+			STA	addr+1
+			ENDMACRO
+
+			MACRO	STAX16	addr, value
+			LDA	#LO(value)
+			STA	addr, X
+			LDA	#HI(value)
+			STA	addr+1, X
+			ENDMACRO
+
+			MACRO	ADCI16	addr, value
+			LDA	addr
+			ADC	#LO(value)
+			STA	addr
+			LDA	addr+1
+			ADC	#HI(value)
+			STA	addr+1
+			ENDMACRO
+
+			MACRO	ADDI16	addr, value
+			CLC 
+			LDA	addr
+			ADC	#LO(value)
+			STA	addr
+			LDA	addr+1
+			ADC	#HI(value)
+			STA	addr+1
+			ENDMACRO
+
+			MACRO	ADCM16	addr1, addr2
+			LDA	addr1
+			ADC	addr2
+			STA	addr1
+			LDA	addr1+1
+			ADC	addr2+1
+			STA	addr1+1
+			ENDMACRO
+
+			MACRO	ADDM16	addr1, addr2
+			CLC
+			LDA	addr1
+			ADC	addr2
+			STA	addr1
+			LDA	addr1+1
+			ADC	addr2+1
+			STA	addr1+1
+			ENDMACRO
+
+			MACRO	SBCI16	addr, value
+			LDA	addr
+			SBC	#LO(value)
+			STA	addr
+			LDA	addr+1
+			SBC	#HI(value)
+			STA	addr+1
+			ENDMACRO
+
+			MACRO	SUBI16	addr, value
+			SEC 
+			LDA	addr
+			SBC	#LO(value)
+			STA	addr
+			LDA	addr+1
+			SBC	#HI(value)
+			STA	addr+1
+			ENDMACRO
+
+			MACRO	SBCM16	addr1, addr2
+			SEC
+			LDA	addr1
+			SBC	addr2
+			STA	addr1
+			LDA	addr1+1
+			SBC	addr2+1
+			STA	addr1+1
+			ENDMACRO
+
+			MACRO	SUBM16	addr1, addr2
+			SEC
+			LDA	addr1
+			SBC	addr2
+			STA	addr1
+			LDA	addr1+1
+			SBC	addr2+1
+			STA	addr1+1
+			ENDMACRO
+
+			MACRO	AS16L	addr
+			ASL	A
+			ROL	addr
+			ENDMACRO

@@ -1,0 +1,47 @@
+;
+; Title:        BBC Micro Mode 2 Filled Vector Routines
+; Author:       Dean Belfield
+; Started:	20/10/2020
+; Last Updated:	20/10/2020
+;
+; Requires:	output, macros, constants
+;
+; Modinfo:
+;
+
+;  X: X1
+;  Y: Y
+; PX: X2
+;  A: Pixel colour
+;
+.Draw_Horz_Line	{	STA 	PC			; Store the pixel colour
+			TXA				; Get the X1 position in A
+			CMP	PX			; Compare with X2
+			BEQ	SKIP_PLOT		; If X1 = X2, just plot a point!
+			BCS	SKIP_1			; Skip if X1 >= X2
+			LDA	PX			; Get the X2 position in A
+			STX	PX			; Store the X1 position in PX
+.SKIP_1			SUB	PX			; Get the line length in A (pixels)
+			STA	R6 			; R6 = line length
+			LDX	PX			; Get the X1 position in X
+			JSR	Get_Pixel_Address	; Get the pixel address
+			BEQ	SKIP_2			; If we're on left pixel, then skip
+							; TODO: Plot right-hand pixel in byte
+			ADDI16	SL, 8			; Move 1 screen byte to the right
+			DEC	R6			; Decrease line length by 1 pixel
+.SKIP_2			LDA	R6			; Get line length
+			LSR	A			; Divide by 2 (pixel units -> byte units)
+			TAX				; Make our loop counter
+			LDY	#0			; Index into screen memory
+.LOOP_1			LDA	PC			; Get the pixel colour
+			STA	(SL),Y			; Write out 2 pixels
+			ADDI16	SL, 8			; Move 1 screen byte to the right
+			DEX				; Decrement loop
+			BNE	LOOP_1			; Loop until done
+			LDA	R6			; Check the line length
+			AND	#&01			; If there is a pixel remaining							; TODO: Plot left-hand pixel in byte
+			RTS
+
+.SKIP_PLOT		LDA	PC			; Get the colour
+			JMP	Plot
+}

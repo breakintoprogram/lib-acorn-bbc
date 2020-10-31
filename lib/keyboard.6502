@@ -1,0 +1,28 @@
+;
+; Title:	BBC Micro Keyboard Routines
+; Author:	Dean Belfield
+; Created:	29/10/2020
+; Last Updated:	29/10/2020
+;
+; Requires: 	constants
+;
+; Modinfo:
+;
+
+; Read the keyboard
+;  A: Key code to be tested
+; Returns:
+;  Z: Key is not pressed
+; NZ: Key is pressed
+;
+.Read_Keyboard {
+			STA	MOD_1 + 1
+			STX	MOD_2 + 1
+			LDA	#&81
+.MOD_1			LDX	#&FF
+			LDY	#&FF
+			JSR	OSBYTE
+.MOD_2			LDX	#&FF
+			CPY	#&00
+			RTS
+}

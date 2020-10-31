@@ -1,0 +1,170 @@
+;
+; Title:	BBC Micro Model B Sprite Routines
+; Author:	Dean Belfield
+; Created:	27/10/2020
+; Last Updated:	27/10/2020
+;
+; Requires:	output, constants
+;
+; Notes:
+;
+; The function Render_Sprite is a slightly modified version of the sprite routine
+; published by Kevin Edwards in the April/May 1985 edition of Micro User
+;
+; Modinfo:
+;
+
+; Get next available sprite slot
+; R7: Temporary store for X
+; Returns:
+;  X: Index into sprite object block or &FF if full
+;  Z: If sprite slot is free
+; NZ: If no more sprite slots
+;
+.Get_Sprite_Slot {
+			LDA	#0
+.LOOP_1			STA	R7
+			TAX
+			LDA	Sprite_Logic + 1, X
+			BEQ	SKIP_1
+			LDA	R7
+			CLC
+			ADC	#Sprite_Data_Block_Size
+			CMP	#Sprite_Data_Len
+			BCC	LOOP_1
+			LDX	#&FF
+.SKIP_1			RTS
+}
+
+; Render and move all sprites
+; R0: Width
+; R1: Height
+; R5: Temporary storage for X register
+; R2/R3: Address of the sprite graphics data
+; R6/R7: Copy of the screen address pointer
+;
+.Render_Sprites {
+			LDA	#0
+.LOOP_1			STA 	R5
+			TAX
+			LDA	Sprite_Logic + 1, X
+			BEQ	SKIP_1
+;
+; Set up the sprite parameters
+;
+			STA	MOD_1 + 2
+			LDA	Sprite_Logic + 0, X
+			STA	MOD_1 + 1
+;
+; Check whether we need to erase this sprite, i.e. has it been drawn yet?
+;
+			LDA	Sprite_Flags, X
+			AND	#&01
+			BEQ	MOD_1
+;
+; Erase, move, then draw the sprite
+;
+			JSR	DRAW		; Erase the old sprite
+			LDX	R5		; Get the X register
+.MOD_1			JSR 	&FFFF		; Run the sprite logic routine (self-modded)
+			LDX	R5		; Get the X register 
+			LDA	Sprite_Flags, X
+			ORA	#&01		; Set this sprite as drawn for next erase
+			STA	Sprite_Flags, X
+			JSR	DRAW
+;
+; Skip to the next sprite object
+;
+.SKIP_1			LDA	R5
+			CLC
+			ADC	#Sprite_Data_Block_Size
+			CMP	#Sprite_Data_Len
+			BCC	LOOP_1
+			RTS
+;
+; The draw/erase sprite routine
+; Falls through to Render_Sprite
+;
+.DRAW 			LDA	Sprite_W, X: STA R0
+			LDA	Sprite_H, X: STA R1
+			LDA	Sprite_Image + 0, X: STA R2
+			LDA	Sprite_Image + 1, X: STA R3
+			LDA	Sprite_Y, X: TAY
+			LDA	Sprite_X, X: TAX
+;			JMP	Render_Sprite
+}
+
+; Render a single sprite
+;  X: X coordinate
+;  Y: Y coordinate
+; R0: Width
+; R1: Height
+; R2/R3: Address of the sprite graphics data
+; R6/R7: Copy of the screen address pointer
+; 
+.Render_Sprite {
+			JSR	Get_Pixel_Address	; Get the screen address of the sprite
+			LDA	R2: STA LOOP_1+1	; Self-mod the sprite data address
+			LDA	R3: STA LOOP_1+2
+.LOOP_0			LDA	SH			; Make a copy of the screen pointer in R1/R2
+			STA	R7
+			LDA	SL			; For the low byte, it needs to be ANDed
+			AND	#&F8			; to the nearest character
+			STA 	R6	
+			LDA	SL			; And the Y register contains the pixel row
+			AND 	#&07			; in the character
+			TAY				; Transfer to Y
+			LDX	#&00			; Pointer into sprite data
+.LOOP_1			LDA	&FFFF,X			; Get sprite graphic data - SELF MODDED ADDRESS
+			EOR	(R6),Y			; XOR with screen
+			STA	(R6),Y			; Write to screen
+			INX				; Increment graphic pointer
+			INY				; Incremente screen pointer
+			CPX	R1			; Check height - have we finished this column?
+			BEQ	SKIP_1			; If so, then skip
+			CPY	#&08			; Have we reached the end of this character block?
+			BNE	LOOP_1			; No, so just loop
+			ADCI16	R6, &27F		; Add &279 to screen address to move to next character
+			LDY	#&00			; Reset the screen pointer; clears the Z flag
+			BEQ	LOOP_1			; BRA instruction relies upon the Z flag being reset by previous
+.SKIP_1			DEC	R0			; Decrement the width
+			BEQ	SKIP_2			; If we've reached the end, then skip
+			ADDI16	SL, 8			; Move to the next column
+			LDA	R1			; Get the height
+			CLC
+			ADC	LOOP_1+1		; Add to the sprite data low address
+			STA	LOOP_1+1
+			BCC	LOOP_0			; If no carry, then loop
+			INC 	LOOP_1+2		; Increment the high address
+			BNE	LOOP_0			; BRA instructions relies upon this never being 0
+.SKIP_2			RTS 				
+}
+
+Sprite_Data_Block_Size	= &10	; Size of this block
+Sprite_Max		= &08	; Maximum number of sprites
+
+Sprite_Data_Len		= Sprite_Max * Sprite_Data_Block_Size
+
+; Reserve some space for the sprite definitions
+;
+.Sprite_Data		SKIP Sprite_Data_Len
+
+; The sprite definition object structure
+; Each of these is an offset in the spite data table
+; Sprite_Flags:
+; Bit 0: Set first time sprite is drawn
+;
+Sprite_Image		= Sprite_Data + &00	; Address of the sprite graphic data
+Sprite_X		= Sprite_Data + &02	; The sprite X position (pixels)
+Sprite_Y		= Sprite_Data + &03	; The sprite Y position (pixels)
+Sprite_W		= Sprite_Data + &04	; The sprite width (bytes)
+Sprite_H		= Sprite_Data + &05	; The sprite height (pixels)
+Sprite_Logic		= Sprite_Data + &06	; Address of the routine to move the sprite	
+Sprite_Flags		= Sprite_Data + &08	; Various flags
+Sprite_Data_1		= Sprite_Data + &09	; Sprite-specific data in these 
+Sprite_Data_2		= Sprite_Data + &0A
+Sprite_Data_3		= Sprite_Data + &0B
+Sprite_Data_4		= Sprite_Data + &0C
+Sprite_Data_5		= Sprite_Data + &0D
+Sprite_Data_6		= Sprite_Data + &0E
+Sprite_Data_7		= Sprite_Data + &0F

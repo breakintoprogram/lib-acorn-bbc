@@ -1,0 +1,119 @@
+;
+; Title:	BBC Micro Output Routines
+; Author:	Dean Belfield
+; Created:	20/10/2020
+; Last Updated:	20/10/2020
+;
+; Requires: 	macros, constants
+;
+; Notes:
+;
+; The functions Get_Pixel_Address, Pixel_Address_Down and Pixel_Address_Up are slightly
+; modified versions of routines publishd by Kevin Edwards in the April/May 1985 editions
+; of Micro User
+;
+; Modinfo:
+
+; Lookup table of the 32 character rows in Mode 2
+;
+.Table_x280		FOR	N, 0, 31
+			EQUW	SCREEN + (N * &280)
+			NEXT
+
+;  X: X coordinate
+;  Y: Y coordinate
+; Returns:
+; SL/SH: Screen address 
+;  A: Position of pixel in byte (0 or 1 for Mode 2)
+;
+.Get_Pixel_Address	LDA	#0: STA SH		; Store 0 in SH; used as overflow when calculating X*8
+			TYA				; Transfer Y to A
+			AND	#&07			; AND with 7
+			STA	SL			; Store	in SL (Screen low byte)
+			TYA				; Calculate Y=(Y/8)*2
+			LSR 	A: LSR A		; Actually just divide by 4
+			AND	#&FE			; And reset the first bit, so we can index into table
+			TAY 				
+			TXA				; Calculate X*4, using SH as overflow
+			AND	#&FE			; Ignore the first bit of X (the pixel position)
+			AS16L	SH			; Calculate X=(X*4), with overflow into SH	
+			AS16L	SH
+			ADC	SL			; Add to the screen low byte
+			ADC	Table_x280+0, Y		; Add the low byte of the screen multiplication table
+			STA	SL			; Store back in the screen low byte
+			LDA	SH			; Get the overflow of X*4 (high byte)
+			ADC	Table_x280+1, Y		; Add the high byte of the screen multiplication table
+			STA	SH			; Store in the screen high byte
+			TXA				; And finally, return the pixel-in-byte position in A
+			AND	#&01
+			RTS
+
+; SL/SH: Screen address
+;
+.Pixel_Address_Down {
+			LDA	SL			; Get the screen low address
+			AND	#7			; Check whether we're at the bottom of a character
+			CMP	#7
+			BNE	S1			; Not at bottom, so skip
+			ADDI16	SL, &279		; Add &279 to screen address
+			RTS
+.S1			INC	SL			; Skip down to next pixel line
+			RTS
+}
+
+; SL/SH: Screen address
+;
+.Pixel_Address_Up {
+			LDA	SL			; Get the screen low address
+			AND	#7			; Check whether we're at the top of a character row
+			BNE	S1			; Not at top, so skip
+			SUBI16	SL, &279		; Subtract &279 from screen address
+			RTS
+.S1			DEC	SL			; Skip up to next pixel line
+			RTS
+}
+
+; Print a character at a screen position
+;  A: Character to print
+;  X: X position
+;  Y: Y position
+;
+.Print_Char {
+			PHA 				; Stack the character
+			LDA 	#&1F			; Move text cursor to X,Y
+			JSR	OSWRCH
+			TXA				; Set the X position
+			JSR	OSWRCH
+			TYA				; Set the Y position
+			JSR	OSWRCH 
+			PLA				; POP the character off the stack
+			JSR 	OSWRCH			; Print it
+			RTS
+}
+
+; Print a HEX byte at a screen position
+;  A: Byte to print
+;  X: X position
+;  Y: Y position
+;
+.Print_Hex {		PHA				; Stack the original value
+			LSR	A
+			LSR	A
+			LSR	A
+			LSR	A
+			SED
+			CMP	#$0A
+			ADC	#$30
+			CLD
+			JSR	Print_Char
+			INX				; Advance X position by 2 characters
+			INX
+			PLA
+			AND	#&0F			; Get the lower nibble
+			SED
+			CMP	#$0A
+			ADC	#$30
+			CLD
+			JSR	OSWRCH
+			RTS
+}

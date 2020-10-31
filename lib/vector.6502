@@ -1,0 +1,227 @@
+;
+; Title:	BBC Micro Vector Output Routines
+; Author:	Dean Belfield
+; Created:	25/10/2020
+; Last Updated:	25/10/2020
+;
+; Requires:	output, macros, constants
+;
+; Modinfo:
+;
+
+; Plot a pixel
+;  X: X coordinate
+;  Y: Y coordinate
+;  A: Pixel colour (Plot only)
+; Returns:
+; SL/SH: Screen address 
+;
+.Plot			STA	PC			; Store the pixel colour
+.Plot_PC {
+			JSR	Get_Pixel_Address	; Get the pixel address
+			BEQ	S1			; Skip if left pixel byte
+			LDA	PC			; Get the colour
+			AND	#%01010101		; Mask out the right pixel
+			STA	M1+1			; Store it back temporarily
+			LDY	#0			; Clear the index registere
+			LDA	(SL),Y			; Get the pixel we're writing to		
+			AND	#%10101010		; And out any pixel data already there
+.M1			ORA	#&FF			; Or in the new data
+			STA	(SL),Y			; Store
+			RTS
+.S1			LDA	PC			; Get the colour
+			AND	#%10101010		; Mask out the left pixel
+			STA	M2+1			; Store it back temporarily
+			LDY	#0			; Clear the index registere
+			LDA	(SL),Y			; Get the pixel we're writing to		
+			AND	#%01010101		; And out any pixel data already there
+.M2			ORA	#&FF			; Or in the new data
+			STA	(SL),Y			; Store
+			RTS
+}
+
+.Unplot			RTS 
+
+;  X: X pixel position of circle centre
+;  Y: X pixel position of circle centre
+;  A: Colour (0-15)
+; R0: Radius
+; R2/R3: Delta
+; R4/R5: D1
+; R6/R7: D2
+; R8/R9: X/Y position in quadrant
+;
+.Draw_Circle {		
+			STX	PX			; Store the circle centre
+			STY	PY
+			STA	PC			; Store the circle colour
+			LDA	R0			; Get the radius
+			BNE	SKIP_1 			; If > 0 then draw circle
+			JMP	Plot_PC
+.SKIP_1			STA	R9 			; Store radius in PY
+			LDX	#0			; Store 0 in PX
+			STX	R8	
+;
+; Delta and D1 = 1 (Delta should be 1-R?)
+;
+			STX	R3			; High bytes 0 
+			STX	R5
+			STX	R7			; Also high byte of Delta
+			INX 
+			STX	R2
+			STX	R4
+;
+; Calculate D2 = 3-(R*2)
+;			
+			AS16L	R7			; Multiply A/R7 by 2
+			STA	R6			; R6/R7 = (R*2)
+			LDA	#3			; Now subtract it from 3
+			SEC 
+			SBC 	R6
+			STA	R6
+			LDA	#0
+			SBC	R7
+			STA	R7			; R6/R7 = 3-(R*2)
+;
+; The loop
+;
+.LOOP			LDA	R9			; Get Y
+			CMP	R8			; Compare with X
+			BCS	SKIP_4			; End if X > Y
+			RTS
+;
+; The circle routine calculates 1/8th of a circle; this block of code uses
+; symmetry to draw a complete circle
+;
+.SKIP_4			LDA	PX: ADD R8: TAX		; Plot the first quadrant
+			LDA	PY: ADD R9: TAY
+			JSR	Plot_PC
+			LDA	PX: ADD R9: TAX
+			LDA	PY: ADD R8: TAY
+			JSR 	Plot_PC
+
+			LDA	PX: SUB R8: TAX		; Plot the second quadrant
+			LDA	PY: ADD R9: TAY
+			JSR	Plot_PC
+			LDA	PX: SUB R9: TAX
+			LDA	PY: ADD R8: TAY
+			JSR 	Plot_PC
+
+			LDA	PX: ADD R8: TAX		; Plot the third quadrant
+			LDA	PY: SUB R9: TAY
+			JSR	Plot_PC
+			LDA	PX: ADD R9: TAX
+			LDA	PY: SUB R8: TAY
+			JSR 	Plot_PC
+
+			LDA	PX: SUB R8: TAX		; Plot the fourth quadrant
+			LDA	PY: SUB R9: TAY
+			JSR	Plot_PC
+			LDA	PX: SUB R9: TAX
+			LDA	PY: SUB R8: TAY
+			JSR 	Plot_PC
+;
+; The incremental circle algorithm
+;
+			LDA	R3			; Check for Delta < 0
+			BPL	SKIP_2
+			ADDM16	R2, R4			; Delta += D1
+			JMP	SKIP_3
+.SKIP_2			ADDM16	R2, R6			; Delta += D2
+			ADDI16	R6, 2			; D2 += 2
+			DEC	R9			;  Y -= 1
+.SKIP_3			ADDI16	R6, 2			; D2 += 2
+			ADDI16	R4, 2			; D1 += 2
+			INC 	R8			;  X += 1
+			JMP	LOOP
+}
+
+; Draw a line between (X1,Y1) and (X2,Y2)
+;  X: X1
+;  Y: Y1
+;  A: Colour
+; PX: X2 
+; PY: Y2
+; Uses:
+; R0, R1: W and H of line
+; R2, R3: Running parameters for Bresenhams
+; R4, R5: X and Y directions
+;
+.Draw_Line {		
+			STA	PC			; Store the pixel colour
+
+			TXA				; Get X1 in A
+			LDX	#&01			; X direction defaults to +1
+			SUB	PX			; Subtract with X2
+			BCS	SKIP_PX			; If carry then skip next bit
+			NEG				; Negate width to make it positive
+			LDX 	#&FF			; Change X draw direction to -1
+.SKIP_PX		STX	R4			; Store X direction
+			STA	R0			; Store width
+
+			TYA				; Get Y1
+			LDY 	#&01			; Y direction defauts to +1
+			SUB	PY			; Subtract with Y2
+			BCS	SKIP_PY			; If positive then skip next bit
+			NEG				; Negate height to make it positive
+			LDY	#&FF			; Change Y draw direction to -1
+.SKIP_PY		STY	R5			; Store Y direction
+			STA	R1			; Store height
+
+			CMP	R0			; Compare height with the width
+			BCC	SKIP_Q2			; If no carry, then skip to draw Q2
+;
+; Case #1: height >= width
+;
+			STA	R3			; R3 = height
+			LSR	A			; R2 = height / 2
+			STA	R2
+
+.LOOP_Q1		LDX	PX			; Plot the point
+			LDY	PY
+			JSR	Plot_PC
+			LDA	R2			; The Brezenham's calculation
+			SUB	R0
+			STA	R2
+			BCS	SKIP_Q1M
+			ADC	R1
+			STA	R2
+			LDA	R4
+			ADD	PX
+			STA	PX
+.SKIP_Q1M		LDA	R5
+			ADD	PY
+			STA	PY
+			DEC	R3
+			BNE	LOOP_Q1
+			LDX	PX
+			LDY	PY
+			JMP	Plot_PC
+;
+; Case #2: height < width
+;
+.SKIP_Q2		LDA	R0
+			STA	R3			; R3 = width
+			LSR	A
+			STA	R2			; R2 = width / 2
+.LOOP_Q2		LDX	PX			; Plot the point
+			LDY	PY
+			JSR	Plot_PC
+			LDA	R2			; The Brezenham's calculation
+			SUB	R1
+			STA	R2
+			BCS	SKIP_Q2M
+			ADC	R0
+			STA	R2
+			LDA	R5
+			ADD	PY
+			STA	PY
+.SKIP_Q2M		LDA	R4
+			ADD	PX
+			STA	PX
+			DEC	R3
+			BNE	LOOP_Q2
+			LDX	PX
+			LDY	PY
+			JMP	Plot_PC			; Plot the final point
+}
