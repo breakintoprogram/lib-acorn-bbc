@@ -8,7 +8,6 @@ A suite of 6502 modules for:
 
 ##### Build the demos
 - The code is written to cross-assemble in BeebAsm on PC, Mac or Linux
-- Visual Studio Code files included in .vscode folder for build and debug
 - Demo files in the /Demo directory included to give you a quick-start
 
 #### Attribution
